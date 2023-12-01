@@ -1,24 +1,36 @@
 #ifndef THREADBANK_H
 #define THREADBANK_H
 
-#include <stdio.h>
+#include <errno.h>
+#include <netinet/in.h>
 #include <pthread.h> 
+#include <signal.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <sys/file.h>
+#include <time.h>
 
 #define MAX_SOCKETS 100
-#define BUFFER_SIZE 255
-#define DESK_COUNT 5
+#define BUFFER_SIZE 180
+#define DESK_COUNT 10
+
+typedef struct {
+    int sockets[MAX_SOCKETS];
+    int count;
+} socketQueue;
 
 #define LOCK(mutex) pthread_mutex_lock(&mutex)
 #define UNLOCK(mutex) pthread_mutex_unlock(&mutex)
 
-/**
- * @brief reads the accounts balance when provided with the accounts "FILE*" file address.
- * 
- * @param file type FILE* and should be the file from which the balance is read.
- * 
- * @return the balance in the account, stored in the file provided.
-*/
-int read_balance(int account);
+
+/** BANK ACTIONS DIRECTORY FUNCTIONS */
 
 /**
  * @brief calls the appropriate function for each command and returns the result.
@@ -64,6 +76,18 @@ void w_command(char* message, char* response);
  * @return string which contains the server response to the given command
 */
 void l_command(char* message, char* response);
+
+
+/** FUNCTIONS DIRECTORY FUNCTIONS */
+
+/**
+ * @brief reads the accounts balance when provided with the accounts "FILE*" file address.
+ * 
+ * @param file type FILE* and should be the file from which the balance is read.
+ * 
+ * @return the balance in the account, stored in the file provided.
+*/
+int read_balance(int account);
 
 /**
  * @brief writes the given text, representing the action, to the log file.

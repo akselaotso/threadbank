@@ -43,7 +43,6 @@ int main(int argc, char** argv) {
     }
 
     printf(textBuffer);
-    printf("\n");
     
     char* buf = malloc(BUFFER_SIZE);
     if (buf == NULL) return -1;

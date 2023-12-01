@@ -1,58 +1,27 @@
 #include "threadbank.h"
-#include <errno.h>
-#include <netinet/in.h>
-#include <pthread.h> 
-#include <signal.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <sys/un.h>
-#include <unistd.h>
 
-typedef struct {
-    int sockets[MAX_SOCKETS];
-    int count;
-} socketQueue;
+int g_endProgram = 0;
+pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
+socketQueue g_mainQueue[DESK_COUNT];
 
-int endProgram = 0;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-socketQueue mainQueue[DESK_COUNT];
 
 /**
  * @brief Function to change endProgram parameter, used as signal handler for SIGTERM and SIGINT to enable graceful shutdown.
  * 
  * @return void
 */
-void change_endProgram() { endProgram = 1; }
+void change_endProgram() { g_endProgram = 1; }
 
 /**
- * @brief creates the log file for logging the servers actions.
- * 
- * @return 1 if error, 0 if success.
-*/
-int create_log_file() {
-    FILE* logfile = fopen("log_file.txt", "w");
-    if (logfile == NULL) {
-        perror("Error creating logfile.");
-        return 1;
-    }
-    fclose(logfile);
-    return 0;
-}
-
-/**
- * @brief Gets next socket from mainQueue
+ * @brief Gets next socket from g_mainQueue
  * 
  * @return the next socket
 */
 int get_next_socket(int index) {
-    LOCK(mutex);
-    int first = mainQueue[index].sockets[0];
-    for (int i = 0; i < mainQueue[index].count; i++) mainQueue[index].sockets[i] = mainQueue[index].sockets[i + 1];
-    UNLOCK(mutex);
+    LOCK(g_mutex);
+    int first = g_mainQueue[index].sockets[0];
+    for (int i = 0; i < g_mainQueue[index].count; i++) g_mainQueue[index].sockets[i] = g_mainQueue[index].sockets[i + 1];
+    UNLOCK(g_mutex);
     return first;    
 }
 
@@ -71,21 +40,21 @@ void* reciever_thread(void* serverSocket_input) {
           perror("accept() in receiver_thread()");
           exit(EXIT_FAILURE);
         }
-        printf("recieved client %d\n", client);
-        LOCK(mutex);
+        // printf("recieved client %d\n", client);
+        LOCK(g_mutex);
 
         int minIndex = 0;
         int minCount = 0;
         for (int i = 0; i < DESK_COUNT; i++) {
-            if (mainQueue[i].count <= minCount) {
+            if (g_mainQueue[i].count <= minCount) {
                 minIndex = i;
-                minCount = mainQueue[i].count;
+                minCount = g_mainQueue[i].count;
             }
         }
         
-        mainQueue[minIndex].sockets[mainQueue[minIndex].count] = client;
-        mainQueue[minIndex].count++;
-        UNLOCK(mutex);
+        g_mainQueue[minIndex].sockets[g_mainQueue[minIndex].count] = client;
+        g_mainQueue[minIndex].count++;
+        UNLOCK(g_mutex);
     }
 }
 
@@ -103,11 +72,11 @@ void* desk_thread(void* deskNumber_input) {
 
     int clientSocket;
     while (1) {
-        while (mainQueue[deskNumber].count == 0) sleep(1);
+        while (g_mainQueue[deskNumber].count == 0) sleep(1);
         clientSocket = get_next_socket(deskNumber);
-        printf("Thread %d serving new client\n", deskNumber);
+        // printf("Thread %d serving new client\n", deskNumber);
 
-        char* message = "ready";
+        char* message = "ready\n";
         if (send(clientSocket, message, strlen(message), 0) == -1) {
             printf("Desk thread had error sending initial message\n");
             close(clientSocket);
@@ -116,9 +85,9 @@ void* desk_thread(void* deskNumber_input) {
             char recievedMessage[BUFFER_SIZE];
             char response[BUFFER_SIZE]; 
             while ((bytesRead = recv(clientSocket, recievedMessage, sizeof(recievedMessage), 0)) > 0) {
-                printf(recievedMessage);
+                // printf(recievedMessage);
                 bank_action(recievedMessage, response);
-                printf(response);
+                // printf(response);
 
                 if (send(clientSocket, response, strlen(response), 0) == -1) {
                     printf("Desk thread error sending message");
@@ -128,12 +97,14 @@ void* desk_thread(void* deskNumber_input) {
                 memset(&recievedMessage, 0, sizeof(recievedMessage));
             }
         }
-        mainQueue[deskNumber].count -= 1;
-        printf("Client exited desk %d\n", deskNumber);
+        LOCK(g_mutex);
+        g_mainQueue[deskNumber].count -= 1;
+        UNLOCK(g_mutex);
+        // printf("Client exited desk %d\n", deskNumber);
 
-        LOCK(mutex);
-        log_action("Client service complete");
-        UNLOCK(mutex);
+        LOCK(g_mutex);
+        log_action("Desk current service complete");
+        UNLOCK(g_mutex);
     }
 }
 
@@ -142,6 +113,8 @@ int main(int argc, char* argv[]) {
 
     int serverSocket = create_server_socket(AF_UNIX, SOCK_STREAM);
     if (serverSocket == -1) exit(EXIT_FAILURE);
+
+    log_action("Socket opened");
 
     pthread_t reciever;
     if (pthread_create(&reciever, NULL, reciever_thread, (void*)&serverSocket) != 0) {
@@ -162,25 +135,33 @@ int main(int argc, char* argv[]) {
         i++;
     }
 
+    log_action("Desk opening complete");
+
     signal(SIGTERM, change_endProgram);
     signal(SIGINT, change_endProgram);
 
     printf("[TYPE q AND PRESS ENTER TO QUIT AND END PROCESS]\n");
-    while (!endProgram) if (getchar() == 'q') break;
+    while (!g_endProgram) {
+        if (getchar() == 'q') break;
+    }
 
     printf("Exiting, please wait...\n");
+    log_action("Ending process...");
 
     i = 0;
     while (i < DESK_COUNT) {
+        printf("|");
         if (pthread_cancel(desks[i]) != 0) perror("Cancelling desk thread");
         sleep(1);
         i++;
     }
+    printf("|\n");
 
     if (pthread_cancel(reciever) != 0) perror("Cancelling reciever thread");
 
     close(serverSocket);
     unlink("./socket");
+    log_action("Server shutting down now");
     return 0;
 }
 

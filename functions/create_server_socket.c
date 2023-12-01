@@ -1,8 +1,6 @@
 #include "../threadbank.h"
-#include <sys/un.h>
-#include <sys/socket.h>
-#include <errno.h>
-#include <unistd.h>
+
+
 /**
  * @brief creates server socket; starts socket, unlinks previous, binds socket and starts listening to socket.
  * 
@@ -42,4 +40,3 @@ int create_server_socket(int domain, int type) {
 
     return mySocket;
 }
-
