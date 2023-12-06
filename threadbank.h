@@ -16,6 +16,7 @@
 #include <sys/socket.h>
 #include <sys/file.h>
 #include <time.h>
+#include <sys/stat.h>
 
 #define MAX_SOCKETS 100
 #define BUFFER_SIZE 180
@@ -142,6 +143,8 @@ void change_endProgram();
  * @return 1 if error, 0 if success.
 */
 int create_log_file();
+
+/** SERVER.C FILE FUNCTIONS */
 
 /**
  * @brief Gets next socket from mainQueue

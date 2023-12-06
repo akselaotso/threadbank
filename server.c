@@ -111,6 +111,10 @@ void* desk_thread(void* deskNumber_input) {
 int main(int argc, char* argv[]) {
     if (create_log_file() != 0) exit(EXIT_FAILURE);
 
+    if (access("accounts", F_OK) != 0) {
+        if (mkdir("accounts", 0666) == -1) {perror("dir creation"); return -1;}
+    }
+
     int serverSocket = create_server_socket(AF_UNIX, SOCK_STREAM);
     if (serverSocket == -1) exit(EXIT_FAILURE);
 
@@ -150,12 +154,10 @@ int main(int argc, char* argv[]) {
 
     i = 0;
     while (i < DESK_COUNT) {
-        printf("|");
         if (pthread_cancel(desks[i]) != 0) perror("Cancelling desk thread");
         sleep(1);
         i++;
     }
-    printf("|\n");
 
     if (pthread_cancel(reciever) != 0) perror("Cancelling reciever thread");
 

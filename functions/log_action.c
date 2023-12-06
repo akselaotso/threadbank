@@ -30,3 +30,4 @@ int log_action(char* text) {
     fclose(outputFile);
     return 0;
 }
+

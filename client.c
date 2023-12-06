@@ -10,6 +10,7 @@
 
 #define BUFFER_SIZE 1020
 
+
 /**
  * @brief The client function creates a socket and then sends commands to the server, each time listening for the response and printing it to the client to see in stdout.
 */
@@ -48,11 +49,8 @@ int main(int argc, char** argv) {
     if (buf == NULL) return -1;
     char responseBuffer[BUFFER_SIZE];
     while (1) {
-        printf("Next line: \n");
         if (fgets(buf, BUFFER_SIZE, stdin) == NULL) break;
 
-        printf("Recieved command: \n");
-        printf(buf);
         char command = buf[0];
         if (command == 'q') break;
         else if ((command == 'l') || (command == 'w') || (command == 't') || (command == 'd')) {
@@ -76,3 +74,4 @@ int main(int argc, char** argv) {
     free(buf);
     return 0;
 }
+
